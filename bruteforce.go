@@ -50,22 +50,34 @@ func (b *bruteForceOptimizer) optimize1(track Track, score Score) (Task, error) 
 	var distance float64
 	var optimalTask Task
 
-	task := Task{}
-	task.Turnpoints = make([]Point, 1)
-
-	for i := 0; i < len(track.Points)-2; i++ {
-		for j := i + 1; j < len(track.Points)-1; j++ {
-			for z := j + 1; z < len(track.Points); z++ {
-				task.Start = track.Points[i]
-				task.Turnpoints[0] = track.Points[j]
-				task.Finish = track.Points[z]
-				distance = task.Distance()
-				if distance > optimalDistance {
-					optimalDistance = distance
-					optimalTask = Task(task)
+	l := len(track.Points)
+	tasks := make(chan Task, 1000)
+	result := make(chan float64, 1000)
+	for a := 0; a < 4; a++ {
+		go func(a int, result chan float64) {
+			task := Task{Turnpoints: make([]Point, 1)}
+			for i := a * (l / 4); i < a*(l/4)+(l/4); i++ {
+				for j := i + 1; j < len(track.Points)-1; j++ {
+					for z := j + 1; z < len(track.Points); z++ {
+						task.Start = track.Points[i]
+						task.Turnpoints[0] = track.Points[j]
+						task.Finish = track.Points[z]
+						result <- task.Distance()
+						tasks <- task
+					}
 				}
 			}
+		}(a, result)
+	}
+	task := Task{}
+	for i := 0; i < l*l*l; i++ {
+		distance = <-result
+		task = <-tasks
+		if distance > optimalDistance {
+			optimalDistance = distance
+			optimalTask = task
 		}
+
 	}
 	return optimalTask, nil
 }
